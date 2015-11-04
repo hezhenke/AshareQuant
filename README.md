@@ -1,4 +1,4 @@
-# AshareQuant
+## AshareQuant
 A股量化投资
 
 用到了第三方库tushare，前期工作制定策略，选股票，追踪股票到合适的买点，发出买入信号，手动买入。
