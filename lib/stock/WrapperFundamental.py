@@ -1,18 +1,18 @@
 
-import tushare as ts
+import lib.stock.fundamental as fd
 import pandas as pd
 import os
 
-class WrapperTushare:
+class WrapperFundamental:
     def __getattr__(self, attr):
-        if ts.__dict__.has_key(attr):
+        if fd.__dict__.has_key(attr):
             def default_method(*args,**kwargs):
                 args_str = "-".join([str(i) for i in args])
                 kwargs_str = "-".join(["_".join([k,str(w)]) for (k,w) in kwargs.items()])
                 filename = "-".join([i for i in [attr,args_str,kwargs_str,"cache.csv"] if len(i) > 0] )
                 data = self._read_cache(filename)
                 if data is None:
-                    data = ts.__dict__[attr](*args,**kwargs)
+                    data = fd.__dict__[attr](*args,**kwargs)
                     if isinstance(data, pd.DataFrame):
                         self._write_cache(data,filename)
                 return data
@@ -45,12 +45,12 @@ class WrapperTushare:
                 df['code'] = df['code'].map(lambda x:str(x).zfill(6))
                 df = df.set_index('code')
         else:
-            df = ts.get_stock_basics()
+            df = fd.get_stock_basics()
             if isinstance(df, pd.DataFrame):
                 self._write_cache(df,filename)
         return df
 if __name__ == '__main__':
-    w = WrapperTushare()
+    w = WrapperFundamental()
     data = w.get_debtpaying_data(2014,3)
     print data
     '''

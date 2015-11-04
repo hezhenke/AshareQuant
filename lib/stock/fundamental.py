@@ -6,11 +6,8 @@ Created on 2015/09/09
 @contact: hezhenke123@163.com
 """
 import pandas as pd
-import cons as ct
-import cache
-import lxml.html
-from lxml import etree
-import re
+from lib import cons as ct
+from lib.stock import cache
 import json
 import os
 from pandas.compat import StringIO
@@ -92,7 +89,7 @@ def get_stock_hq_list():
     """
     ct._write_head()
     df =  _get_stock_hq_list(1, pd.DataFrame())
-    if df is not None:
+    if df is not None and not data.empty:
         df = df.drop_duplicates('code')
         df['code'] = df['code'].map(lambda x:str(x).zfill(6))
     return df
@@ -102,7 +99,8 @@ def _get_stock_hq_list(pageNo, dataArr):
         #param:["hq","hs_a","{sort}",{asc},{page},{num}]
         hq_list_param = '["hq","hs_a","",0,%d,%d]'%(pageNo,ct.OPEN_API_PAGE_NUM)
         request = Request(ct.SINA_OPEN_API_URL%(quote(hq_list_param,',[]')))
-        text = urlopen(request, timeout=10).read()
+        request.add_header("User-Agent", ct.USER_AGENT)
+        text = urlopen(request, timeout=ct.API_TIMEOUT).read()
         text = text.decode('gbk') if ct.PY3 else text 
         js = json.loads(text.strip())
         if js is None:
@@ -130,23 +128,22 @@ def get_profit_data(year, quarter):
     Return
     --------
     DataFrame
-        Symbol,代码
-        SName,股票名称
-        JZCSYL,净资产收益率（%）
-        NPMargin,净利率（%）
-        JLR,净利润（百万元）
-        MGSY,每股收益（元）
-        ZYYWSR,主营业务收入
-        myGPMargin,毛利率（%）
-        SPS,每股主营业务收入（元）
+        code,代码
+        name,股票名称
+        roe,净资产收益率（%）
+        net_profit_ratio,净利率（%）
+        net_profits,净利润（百万元）
+        eps,每股收益（元）
+        business_income,主营业务收入
+        gross_profit_rate,毛利率（%）
+        bips,每股主营业务收入（元）
     """
     if ct._check_input(year, quarter) is True:
         ct._write_head()
         data = _get_profit_data(year, quarter,1,pd.DataFrame())
-        if data is not None:
-            data = data.drop('PTROA',axis=1)
-            data = data.drop_duplicates('Symbol')
-            data['Symbol'] = data['Symbol'].map(lambda x:str(x).zfill(6))
+        if data is not None and not data.empty:
+            data = data.drop_duplicates('code')
+            data['code'] = data['code'].map(lambda x:str(x).zfill(6))
         return data
     
 def _get_profit_data(year, quarter,pageNo,dataArr):
@@ -156,13 +153,17 @@ def _get_profit_data(year, quarter,pageNo,dataArr):
         #param:["ylnl","行业","地域","概念","年","季度","{sort}",{asc},{page},{num}]
         ylnl_list_param = '["ylnl","","","","%d","%d","",0,%d,%d]'%(year, quarter,pageNo,ct.OPEN_API_PAGE_NUM)
         request = Request(ct.SINA_OPEN_API_URL%(quote(ylnl_list_param,',[]')))
-        text = urlopen(request, timeout=10).read()
+        request.add_header("User-Agent", ct.USER_AGENT)
+        text = urlopen(request, timeout=ct.API_TIMEOUT).read()
         text = text.decode('gbk') if ct.PY3 else text 
         js = json.loads(text.strip())
         if js is None:
             return dataArr
-        df = pd.DataFrame(js[0]['items'], columns=js[0]['fields'])
-        dataArr = dataArr.append(df, ignore_index=True)
+        df = pd.DataFrame(js[0]['items'])
+        if not df.empty:
+            df = df.drop(0,axis=1)
+            df.columns = ct.PROFIT_COLS
+            dataArr = dataArr.append(df, ignore_index=True)
         if int(js[0]['count']) > pageNo * ct.OPEN_API_PAGE_NUM :
             pageNo = pageNo+1
             return _get_profit_data(year, quarter,pageNo, dataArr)
@@ -182,23 +183,22 @@ def get_operation_data(year, quarter):
     Return
     --------
     DataFrame
-        Symbol,代码
-        SName,股票名称
-        FinancialRatios3,应收账款周转率（次）
-        inancialRatios4,应收账款周转天数（天）
-        FinancialRatios19,存货周转率（次）
-        FinancialRatios22,存货周转天数（天）
-        FinancialRatios24,流动资产周转率（次）
-        FinancialRatios25,流动资产周转天数（天）
+        code,代码
+        name,股票名称
+        arturnover,应收账款周转率（次）
+        arturndays,应收账款周转天数（天）
+        inventory_turnover,存货周转率（次）
+        inventory_days,存货周转天数（天）
+        currentasset_turnover,流动资产周转率（次）
+        currentasset_days,流动资产周转天数（天）
     """
     if ct._check_input(year, quarter) is True:
         ct._write_head()
         data = _get_operation_data(year, quarter,1,pd.DataFrame())
-        if data is not None:
-            data = data.drop('FinancialRatios21',axis=1)
-            data = data.drop('FinancialRatios23',axis=1)
-            data = data.drop_duplicates('Symbol')
-            data['Symbol'] = data['Symbol'].map(lambda x:str(x).zfill(6))
+        if data is not None and not data.empty:
+            
+            data = data.drop_duplicates('code')
+            data['code'] = data['code'].map(lambda x:str(x).zfill(6))
         return data
         
 def _get_operation_data(year, quarter,pageNo,dataArr):
@@ -208,14 +208,17 @@ def _get_operation_data(year, quarter,pageNo,dataArr):
         #param:["yynl","行业","地域","概念","年","季度","{sort}",{asc},{page},{num}]
         list_param = '["yynl","","","","%d","%d","",0,%d,%d]'%(year, quarter,pageNo,ct.OPEN_API_PAGE_NUM)
         request = Request(ct.SINA_OPEN_API_URL%(quote(list_param,',[]')))
-        
-        text = urlopen(request, timeout=10).read()
+        request.add_header("User-Agent", ct.USER_AGENT)
+        text = urlopen(request, timeout=ct.API_TIMEOUT).read()
         text = text.decode('gbk') if ct.PY3 else text 
         js = json.loads(text.strip())
         if js is None:
             return dataArr
-        df = pd.DataFrame(js[0]['items'], columns=js[0]['fields'])
-        dataArr = dataArr.append(df, ignore_index=True)
+        df = pd.DataFrame(js[0]['items'])
+        if not df.empty:
+            df = df.drop([3,4],axis=1)
+            df.columns = ct.OPERATION_COLS
+            dataArr = dataArr.append(df, ignore_index=True)
         if int(js[0]['count']) > pageNo * ct.OPEN_API_PAGE_NUM :
             pageNo = pageNo+1
             return _get_operation_data(year, quarter,pageNo, dataArr)
@@ -250,17 +253,11 @@ def get_growth_data(year, quarter):
         seg,股东权益增长率（%）
     """
     if ct._check_input(year, quarter) is True:
-        filename = "growth_data_%d_%d.csv"%(year, quarter)
-        data = cache.read_cache(filename)
-        if  data is not None:
-            data = data.drop_duplicates('code')
-            data['code'] = data['code'].map(lambda x:str(x).zfill(6))
-            return data
-        #nocache
+
         ct._write_head()
         data = _get_growth_data(year, quarter,1,pd.DataFrame())
-        cache.write_cache(data,filename)
-        if data is not None:
+
+        if data is not None and not data.empty:
             data = data.drop_duplicates('code')
             data['code'] = data['code'].map(lambda x:str(x).zfill(6))
         return data
@@ -272,14 +269,18 @@ def _get_growth_data(year, quarter,pageNo,dataArr):
         #param:["cnl","行业","地域","概念","年","季度","{sort}",{asc},{page},{num}]
         list_param = '["cnl","","","","%d","%d","",0,%d,%d]'%(year, quarter,pageNo,ct.OPEN_API_PAGE_NUM)
         request = Request(ct.SINA_OPEN_API_URL%(quote(list_param,',[]')))
-        
-        text = urlopen(request, timeout=10).read()
+        request.add_header("User-Agent", ct.USER_AGENT)
+        text = urlopen(request, timeout=ct.API_TIMEOUT).read()
         text = text.decode('gbk') if ct.PY3 else text 
         js = json.loads(text.strip())
         if js is None:
             return dataArr
-        df = pd.DataFrame(js[0]['items'],columns=ct.GROWTH_COLS)
-        dataArr = dataArr.append(df, ignore_index=True)
+        df = pd.DataFrame(js[0]['items'])
+        if not df.empty:
+            df.columns=ct.GROWTH_COLS
+            for col in (ct.GROWTH_COLS[0:4]+ct.GROWTH_COLS[7:]):
+                df[col] = df[col].astype(str).replace("--","0").replace("", "0").replace("None","0").astype(float)
+            dataArr = dataArr.append(df, ignore_index=True)
         if int(js[0]['count']) > pageNo * ct.OPEN_API_PAGE_NUM :
             pageNo = pageNo+1
             return _get_growth_data(year, quarter,pageNo, dataArr)
@@ -300,30 +301,23 @@ def get_debtpaying_data(year, quarter):
     Return
     --------
     DataFrame
-        FinancialRatios1,流动比率（%）
-        FinancialRatios2,速动比率（%）
-        FinancialRatios5,现金比率（%）
-        FinancialRatios6,利息支付倍数
-        FinancialRatios8,股东权益比率（%）
-        FinancialRatios56,资产负债率（%）
-        Symbol,代码
-        SName,股票名称
+        currentratio,流动比率（%）
+        quickratio,速动比率（%）
+        cashratio,现金比率（%）
+        icratio,利息支付倍数
+        sheqratio,股东权益比率（%）
+        adratio,资产负债率（%）
+        code,代码
+        name,股票名称
     """
     
     #nocache
     if ct._check_input(year, quarter) is True:
-        filename = "debtpaying_data_%d_%d.csv"%(year, quarter)
-        data = cache.read_cache(filename)
-        if  data is not None:
-            return data
         ct._write_head()
         data = _get_debtpaying_data(year, quarter,1,pd.DataFrame())
-        if data is not None:
-            data = data.drop('FinancialRatios9',axis=1)
-            data = data.drop('FinancialRatios18',axis=1)
-            data = data.drop_duplicates('Symbol')
-            data['Symbol'] = data['Symbol'].map(lambda x:str(x).zfill(6))
-        cache.write_cache(data,filename)
+        if data is not None and not data.empty:
+            data = data.drop_duplicates('code')
+            data['code'] = data['code'].map(lambda x:str(x).zfill(6))
         return data
         
 def _get_debtpaying_data(year, quarter,pageNo,dataArr):
@@ -333,14 +327,17 @@ def _get_debtpaying_data(year, quarter,pageNo,dataArr):
         #param:["cznl","行业","地域","概念","年","季度","{sort}",{asc},{page},{num}]
         list_param = '["cznl","","","","%d","%d","",0,%d,%d]'%(year, quarter,pageNo,ct.OPEN_API_PAGE_NUM)
         request = Request(ct.SINA_OPEN_API_URL%(quote(list_param,',[]')))
-        
-        text = urlopen(request, timeout=10).read()
+        request.add_header("User-Agent", ct.USER_AGENT)
+        text = urlopen(request, timeout=ct.API_TIMEOUT).read()
         text = text.decode('gbk') if ct.PY3 else text 
         js = json.loads(text.strip())
         if js is None:
             return dataArr
-        df = pd.DataFrame(js[0]['items'], columns=js[0]['fields'])
-        dataArr = dataArr.append(df, ignore_index=True)
+        df = pd.DataFrame(js[0]['items'])
+        if not df.empty:
+            df = df.drop([5,6],axis=1)
+            df.columns = ct.DEBTPAYING_COLS
+            dataArr = dataArr.append(df, ignore_index=True)
         if int(js[0]['count']) > pageNo * ct.OPEN_API_PAGE_NUM :
             pageNo = pageNo+1
             return _get_debtpaying_data(year, quarter,pageNo, dataArr)
@@ -360,20 +357,20 @@ def get_cashflow_data(year, quarter):
     Return
     --------
     DataFrame
-        FinancialRatios47,经营现金净流量对销售收入比率（%）
-        FinancialRatios48,资产的经营现金流量回报率（%）
-        FinancialRatios49,经营现金净流量与净利润的比率（%）
-        FinancialRatios50,经营现金净流量对负债比率（%）
-        FinancialRatios51,现金流量比率（%）
-        Symbol,代码
-        SName,股票名称
+        cf_sales,经营现金净流量对销售收入比率（%）
+        rateofreturn,资产的经营现金流量回报率（%）
+        cf_nm,经营现金净流量与净利润的比率（%）
+        cf_liabilities,经营现金净流量对负债比率（%）
+        cashflowratio,现金流量比率（%）
+        code,代码
+        name,股票名称
     """
     if ct._check_input(year, quarter) is True:
         ct._write_head()
         data = _get_cashflow_data(year, quarter,1,pd.DataFrame())
-        if data is not None:
-            data = data.drop_duplicates('Symbol')
-            data['Symbol'] = data['Symbol'].map(lambda x:str(x).zfill(6))
+        if data is not None and not data.empty:
+            data = data.drop_duplicates('code')
+            data['code'] = data['code'].map(lambda x:str(x).zfill(6))
         return data
         
 def _get_cashflow_data(year, quarter,pageNo,dataArr):
@@ -383,14 +380,16 @@ def _get_cashflow_data(year, quarter,pageNo,dataArr):
         #param:["xjll","行业","地域","概念","年","季度","{sort}",{asc},{page},{num}]
         list_param = '["xjll","","","","%d","%d","",0,%d,%d]'%(year, quarter,pageNo,ct.OPEN_API_PAGE_NUM)
         request = Request(ct.SINA_OPEN_API_URL%(quote(list_param,',[]')))
-        
-        text = urlopen(request, timeout=10).read()
+        request.add_header("User-Agent", ct.USER_AGENT)
+        text = urlopen(request, timeout=ct.API_TIMEOUT).read()
         text = text.decode('gbk') if ct.PY3 else text 
         js = json.loads(text.strip())
         if js is None:
             return dataArr
-        df = pd.DataFrame(js[0]['items'], columns=js[0]['fields'])
-        dataArr = dataArr.append(df, ignore_index=True)
+        df = pd.DataFrame(js[0]['items'])
+        if not df.empty:
+            df.columns = ct.CASHFLOW_COLS
+            dataArr = dataArr.append(df, ignore_index=True)
         if int(js[0]['count']) > pageNo * ct.OPEN_API_PAGE_NUM :
             pageNo = pageNo+1
             return _get_cashflow_data(year, quarter,pageNo, dataArr)
@@ -410,31 +409,28 @@ def get_report_data(year, quarter):
     Return
     --------
     DataFrame
-        CompanyCode,公司代码
-        ReportDate,报告时间
-        PUBLISHDATE,报告实际发布时间
         eps,每股收益（元）
-        MFRatio18,每股净资产（元）
-        MFRatio22,净资产收益率（%）
-        MFRatio20,每股现金流量（元）
-        MFRatio2,净利润（万元）
-        Symbol,代码
-        SName,股票名称
-        EXCHANGE,交易所
-        epsLastYear,去年同期每股收益
-        netprofitLastYear,去年同期净利润
-        eps_ratio,每股收益同比（%）
-        MFRatio2Ratio,净利润同比（%）
-        DisHty,利润分配方案
+        bvps,每股净资产（元）
+        roe,净资产收益率（%）
+        epcf,每股现金流量（元）
+        net_profits,净利润（万元）
+        code,代码
+        name,股票名称
+        exchange,交易所
+        epslastyear,去年同期每股收益
+        netprofitlastyear,去年同期净利润
+        eps_yoy,每股收益同比（%）
+        profits_yoy,净利润同比（%）
+        distrib,利润分配方案
         detail,详情
     """
     if ct._check_input(year, quarter) is True:
         
         ct._write_head()
         data = _get_report_data(year, quarter,1,pd.DataFrame())
-        if data is not None:
-            data = data.drop_duplicates('Symbol')
-            data['Symbol'] = data['Symbol'].map(lambda x:str(x).zfill(6))
+        if data is not None and not data.empty:
+            data = data.drop_duplicates('code')
+            data['code'] = data['code'].map(lambda x:str(x).zfill(6))
         return data
         
 def _get_report_data(year, quarter,pageNo,dataArr):
@@ -444,14 +440,17 @@ def _get_report_data(year, quarter,pageNo,dataArr):
         #param:["xjll","行业","地域","概念","年","季度","{sort}",{asc},{page},{num}]
         list_param = '["yjbb","","","","%d","%d","",0,%d,%d]'%(year, quarter,pageNo,ct.OPEN_API_PAGE_NUM)
         request = Request(ct.SINA_OPEN_API_URL%(quote(list_param,',[]')))
-        
-        text = urlopen(request, timeout=10).read()
+        request.add_header("User-Agent", ct.USER_AGENT)
+        text = urlopen(request, timeout=ct.API_TIMEOUT).read()
         text = text.decode('gbk') if ct.PY3 else text 
         js = json.loads(text.strip())
         if js is None:
             return dataArr
-        df = pd.DataFrame(js[0]['items'], columns=js[0]['fields'])
-        dataArr = dataArr.append(df, ignore_index=True)
+        df = pd.DataFrame(js[0]['items'])
+        if not df.empty:
+            df = df.drop([0,2],axis=1)
+            df.columns = ct.REPORT_COLS
+            dataArr = dataArr.append(df, ignore_index=True)
         if int(js[0]['count']) > pageNo * ct.OPEN_API_PAGE_NUM :
             pageNo = pageNo+1
             return _get_report_data(year, quarter,pageNo, dataArr)
@@ -460,6 +459,9 @@ def _get_report_data(year, quarter,pageNo,dataArr):
     except Exception as e:
         print(e)
 if __name__ == '__main__':
+    data = get_growth_data(2015,2)
+    print data
+    '''
     
     data = get_stock_hq_list()
     print data
@@ -478,7 +480,7 @@ if __name__ == '__main__':
     
     data = get_report_data(2015,2)
     print data
-    
+    '''
     
 
 
