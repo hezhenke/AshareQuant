@@ -339,6 +339,7 @@ def get_h_data(code, start=None, end=None, autype='qfq',
           low 最低价
           volume 成交量
           amount 成交金额
+          factor 后复权因子
     '''
     
     start = du.today_last_year() if start is None else start
@@ -364,7 +365,7 @@ def get_h_data(code, start=None, end=None, autype='qfq',
         data = data.sort_index(ascending=False)
         return data
     if autype == 'hfq':
-        data = data.drop('factor', axis=1)
+        #data = data.drop('factor', axis=1)
         data = data[(data.date>=start) & (data.date<=end)]
         for label in ['open', 'high', 'close', 'low']:
             data[label] = data[label].map(ct.FORMAT)
@@ -374,7 +375,7 @@ def get_h_data(code, start=None, end=None, autype='qfq',
         return data
     else:
         if autype == 'qfq':
-            data = data.drop('factor', axis=1)
+            #data = data.drop('factor', axis=1)
             df = _parase_fq_factor(code, start, end)
             df = df.drop_duplicates('date')
             df = df.sort('date', ascending=False)
@@ -405,7 +406,7 @@ def get_h_data(code, start=None, end=None, autype='qfq',
         else:
             for label in ['open', 'high', 'close', 'low']:
                 data[label] = data[label] / data['factor']
-            data = data.drop('factor', axis=1)
+            #data = data.drop('factor', axis=1)
             data = data[(data.date>=start) & (data.date<=end)]
             for label in ['open', 'high', 'close', 'low']:
                 data[label] = data[label].map(ct.FORMAT)

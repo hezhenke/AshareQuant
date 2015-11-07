@@ -8,4 +8,4 @@ Created on 2015/09/11
 VERSION = '0.1.0'
 __all__ = ['WrapperTushare']
 
-from WrapperTushare import WrapperTushare
+#from WrapperTushare import WrapperTushare

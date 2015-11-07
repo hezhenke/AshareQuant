@@ -16,7 +16,7 @@ class DbCache:
     _cache_method_list = []
     
     def __init__(self):
-        self._cache_method_list = ['get_growth_data', 'get_operation_data', 'get_stock_hq_list',  'get_debtpaying_data', 
+        self._cache_method_list = ['get_growth_data', 'get_operation_data',  'get_debtpaying_data', 
              'get_report_data',  'get_cashflow_data','get_profit_data']
     
     def __getattr__(self, attr):
@@ -78,7 +78,7 @@ class DbCache:
         for method in self._cache_method_list:
             collection_name = method[4:]
             print("start checking table %s......"%(collection_name))
-            for year in range(2014,curyear+1):
+            for year in range(start_year,curyear+1):
                 for quarter in range(1,5):
                     data = self._read_cache(collection_name,year,quarter)
                     if data is None:

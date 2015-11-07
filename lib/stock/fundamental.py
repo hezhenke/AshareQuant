@@ -89,7 +89,7 @@ def get_stock_hq_list():
     """
     ct._write_head()
     df =  _get_stock_hq_list(1, pd.DataFrame())
-    if df is not None and not data.empty:
+    if df is not None and not df.empty:
         df = df.drop_duplicates('code')
         df['code'] = df['code'].map(lambda x:str(x).zfill(6))
     return df

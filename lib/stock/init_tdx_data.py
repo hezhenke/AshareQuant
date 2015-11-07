@@ -94,6 +94,7 @@ def _parase_fq_factor(code):
             df['date'] = df['date'].astype(np.str)
         df = df.drop_duplicates('date')
         df = df.set_index("date")
+        df = df.sort_index(ascending=False)
         df['fqprice'] = df['fqprice'].astype(float)
         return df
     except Exception as e:
