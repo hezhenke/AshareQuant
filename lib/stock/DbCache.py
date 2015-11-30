@@ -38,7 +38,7 @@ class DbCache:
         try:
             client = MongoClient(ct.MONGO_HOST, ct.MONGO_PORT)
             
-            cursor = client.stock[collectionName].find({"year":year,"quarter":quarter})
+            cursor = client[ct.MONGO_DATABASE][collectionName].find({"year":year,"quarter":quarter})
             #check if data table exist
             if cursor.count() == 0:
                 return None
@@ -56,14 +56,14 @@ class DbCache:
         try:
             client = MongoClient(ct.MONGO_HOST, ct.MONGO_PORT)
             
-            cursor = client.stock[collectionName].find({"year":year,"quarter":quarter})
+            cursor = client[ct.MONGO_DATABASE][collectionName].find({"year":year,"quarter":quarter})
             #检查是否已经存在了，防止出现重复
             if cursor.count() > 0:
                 return
             if isinstance(df, pd.DataFrame):
                 df.insert(len(df.columns),"year",year)
                 df.insert(len(df.columns),"quarter",quarter)
-                client.stock[collectionName].insert(json.loads(df.to_json(orient='records')))
+                client[ct.MONGO_DATABASE][collectionName].insert(json.loads(df.to_json(orient='records')))
 
             else:
                 raise RuntimeError('data type is incorrect')
