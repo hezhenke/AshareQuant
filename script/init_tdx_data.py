@@ -1,6 +1,5 @@
 # -*- coding:utf-8 -*-
 """
-鍩烘湰闈㈡暟鎹帴鍙� 
 Created on 2015/10/20
 @author: Jacob He
 @contact: hezhenke123@163.com
@@ -8,6 +7,8 @@ Created on 2015/10/20
 import os,sys
 import pandas as pd
 import lib.cons as ct
+import lib.stock.trading as td
+from lib.util import dateu as du
 import json
 import numpy as np
 from pymongo import MongoClient
@@ -31,8 +32,8 @@ def read_file_to_db(root_dir):
                     
                     client = MongoClient(ct.MONGO_HOST, ct.MONGO_PORT)
                     
-                    cursor = client.stock["history_data"].find({"code":code})
-                    #妫�鏌ユ槸鍚﹀凡缁忓瓨鍦ㄤ簡锛岄槻姝㈠嚭鐜伴噸澶�
+                    cursor = client[ct.MONGO_DATABASE]["history_data"].find({"code":code})
+                    #if the code exist in the database,do nothing
                     if cursor.count() > 0:
                         continue
                     exchange = real_filename.split('#')[0]
@@ -43,7 +44,8 @@ def read_file_to_db(root_dir):
                         continue
                     df = df.reset_index()
                     print("writting %s history data to db \n"%(code))
-                    client.stock["history_data"].insert(json.loads(df.to_json(orient='records')))
+                    #print json.loads(df.to_json(orient='records'))
+                    client[ct.MONGO_DATABASE]["history_data"].insert(json.loads(df.to_json(orient='records')))
                     
                 except Exception as e:
                     print(e)
@@ -53,26 +55,48 @@ def read_df(code,file_path):
         temp_line_list = []
         for line in file_obj:
             temp_line_list.append(line.strip())
-        hist_data = [dict([('date',l.split(";")[0]), ('open',float(l.split(";")[1])), ('high',float(l.split(";")[2])),  ('low',float(l.split(";")[3])), ('close',float(l.split(";")[4])), ('volume',int(l.split(";")[5])), ('amount',float(l.split(";")[6]))])  for l in temp_line_list[:-1]]
+        hist_data = [dict([('date',l.split(";")[0]), ('open',float(l.split(";")[1])), ('high',float(l.split(";")[2])),  ('low',float(l.split(";")[3])), ('close',float(l.split(";")[4])), ('volume',int(l.split(";")[5]))])  for l in temp_line_list[:-1]]
         df = pd.DataFrame(hist_data)
         df.drop_duplicates("date")
         df= df.set_index("date")
 
         
-        #璁＄畻澶嶆潈
+        #get the fuquan data
         fuquan_df = _parase_fq_factor(code)
         if not isinstance(fuquan_df, pd.DataFrame):
             return None
         
-        #璁＄畻澶嶆潈鍥犲瓙
+        #add two columns 
         df.insert(len(df.columns), "factor",1)
+        df.insert(len(df.columns), "adjclose",0)
         df.insert(len(df.columns), "code",code)
+        rate = get_adj_rate(code,fuquan_df)
         for date in df.index:
             if date not in fuquan_df.index:
                 df = df.drop(date)
                 continue
+            
             df.loc[date,'factor'] = round(fuquan_df.loc[date,'fqprice']/df.loc[date,'close'],4)
+            df.loc[date,'adjclose'] = round(fuquan_df.loc[date,'fqprice']/rate,2)
         return df
+def get_adj_rate(code,fuquan_df):
+    frow = fuquan_df.head(1)
+    rt = td.get_realtime_quotes(code)
+    if rt is None:
+        return None
+    if ((float(rt['high']) == 0) & (float(rt['low']) == 0)):
+        preClose = float(rt['pre_close'])
+    else:
+        if du.is_holiday(du.today()):
+            preClose = float(rt['price'])
+        else:
+            if (du.get_hour() > 9) & (du.get_hour() < 18):
+                preClose = float(rt['pre_close'])
+            else:
+                preClose = float(rt['price'])
+    
+    rate = float(frow['fqprice']) / preClose
+    return rate
         
 def _parase_fq_factor(code):
     symbol = _code_to_symbol(code)
@@ -94,6 +118,7 @@ def _parase_fq_factor(code):
         if df['date'].dtypes == np.object:
             df['date'] = df['date'].astype(np.str)
         df = df.drop_duplicates('date')
+        df = df.sort('date', ascending=False)
         df = df.set_index("date")
         df['fqprice'] = df['fqprice'].astype(float)
         return df
@@ -103,7 +128,7 @@ def _parase_fq_factor(code):
 
 def _code_to_symbol(code):
     """
-        鐢熸垚symbol浠ｇ爜鏍囧織
+        add the exchange to the stock symbol
     """
     if code in ct.INDEX_LABELS:
         return ct.INDEX_LIST[code]
