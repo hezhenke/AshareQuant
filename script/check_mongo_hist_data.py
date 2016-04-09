@@ -99,14 +99,17 @@ def run():
     today = datetime.strftime(datetime.today(),date_fmt)
     '''获取股票代码列表'''
     stock_list = td.get_stock_hq_list()
-
+    client = MongoClient(ct.MONGO_HOST, ct.MONGO_PORT)
+    if isinstance(stock_list, pd.DataFrame) and not stock_list.empty:
+        client[ct.MONGO_DATABASE]["stock_list"].remove()
+        client[ct.MONGO_DATABASE]["stock_list"].insert(json.loads(stock_list.to_json(orient='records')))
     '''逐个代码检查'''
     for code in stock_list['code']:
         '''获取复权价格'''
         fuquan_df = _parase_fq_factor(code)
         rate = get_adj_rate(code,stock_list,fuquan_df)
         
-        client = MongoClient(ct.MONGO_HOST, ct.MONGO_PORT)           
+                   
         cursor = client[ct.MONGO_DATABASE]["history_data"].find({"code":code}).sort([("date",-1)]).limit(1)
         if cursor.count() <= 0:
             print("%s is not in the db"%(code))
