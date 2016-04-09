@@ -1,5 +1,7 @@
 ## AshareQuant
-A股量化投资
+A股数据维护，把线上数据维护到mongodb
 
-用到了第三方库tushare，前期工作制定策略，选股票，追踪股票到合适的买点，发出买入信号，手动买入。
-跟踪已有仓位，进行仓位控制，以及卖出操作
+运行 
+./script/schedule.sh 每天一次，可以写入crontab中运行，定时更新基本面和历史日K线数据
+
+mongodb 初始化数据下载地址:http://yun.baidu.com/share/link?shareid=1949290912&uk=3758172946
